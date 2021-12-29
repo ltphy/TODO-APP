@@ -3,13 +3,11 @@ import 'package:todo/model/task/task.dart';
 import 'package:todo/service/storage_database.dart';
 
 class TaskListProvider extends ChangeNotifier {
-  final List<Task> taskList;
-  final StorageDatabase storageDatabase;
+  List<Task> taskList;
 
-  TaskListProvider({
-    required this.taskList,
-    required this.storageDatabase,
-  });
+  final HiveDatabase storageDatabase;
+
+  TaskListProvider({required this.taskList, required this.storageDatabase});
 
   List<Task> get completeTasks =>
       taskList.where((task) => task.isComplete).toList();
@@ -18,43 +16,43 @@ class TaskListProvider extends ChangeNotifier {
       taskList.where((task) => !task.isComplete).toList();
 
   Future<void> _addTask(Task task) async {
-    taskList.add(task);
-    notifyListeners();
-    await saveTaskList();
+    await storageDatabase.addTask(task);
+    getTaskList();
   }
 
-  Future<void> saveTaskList() async {
-    await storageDatabase.saveTaskListToStorage(taskList);
+  void getTaskList() {
+    taskList = storageDatabase.getTaskListFromStorage();
+    notifyListeners();
   }
 
   Future<void> updateTask(Task task) async {
-    final int taskIndex =
-        taskList.indexWhere((element) => element.id == task.id);
-    if (taskIndex == -1) {
-      await _addTask(task);
-      return;
+    try {
+      Task? selectedTask;
+      try {
+        selectedTask = taskList.firstWhere((element) => element.id == task.id);
+      } catch (error) {
+        selectedTask = null;
+      }
+      // no task in list // or same task
+      if (selectedTask != null && task == selectedTask) return;
+      _addTask(task);
+    } catch (error) {
+      print(error);
+      rethrow;
     }
-    Task currentTask = taskList[taskIndex];
-    // no task in list // or same task
-    if (task == currentTask) return;
-    taskList[taskIndex] = task;
-    notifyListeners();
-    await saveTaskList();
-    return;
   }
 
   Future<void> selectTask(Task task) async {
     // same task save ref in the task list
     task.isComplete = !task.isComplete;
+    await task.save();
     notifyListeners();
-    await saveTaskList();
   }
 
   Future<void> removeTask(Task task) async {
-    if (taskList.remove(task)) {
-      notifyListeners();
-      await saveTaskList();
-    }
+    await task.delete();
+    getTaskList();
+    notifyListeners();
   }
 
   Task getTaskById(String taskId) {

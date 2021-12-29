@@ -1,17 +1,26 @@
 import 'package:flutter/cupertino.dart';
+import 'package:hive/hive.dart';
 import 'package:json_annotation/json_annotation.dart';
 
 part 'task.g.dart';
 
 @JsonSerializable()
-class Task {
+@HiveType(typeId: 0)
+class Task extends HiveObject {
   @JsonKey(required: true)
+  @HiveField(0)
   final String id;
   @JsonKey(required: true)
+  @HiveField(1)
   final String name;
-  @JsonKey(defaultValue: '', )
+  @JsonKey(
+    defaultValue: '',
+  )
+  @HiveField(2)
   String description;
+
   @JsonKey(defaultValue: false)
+  @HiveField(3)
   bool isComplete;
 
   Task({
