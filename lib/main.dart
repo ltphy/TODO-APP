@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:localstorage/localstorage.dart';
 import 'package:provider/provider.dart';
 import 'package:todo/assets/constants.dart';
@@ -10,7 +12,11 @@ import 'routes.dart';
 import 'screens/home_screen/home_screen.dart';
 import 'service/storage_database.dart';
 
-void main() {
+Future<void> main() async {
+  // import path provider because Hive needs a home directory to initialize
+  await Hive.initFlutter();
+  Hive.registerAdapter(TaskAdapter());
+
   runApp(const MyApp());
 }
 
@@ -25,9 +31,13 @@ class _MyAppState extends State<MyApp> {
   final LocalStorage storage = LocalStorage(logsFile);
   late final StorageDatabase storageDatabase;
 
-  Future<List<Task>> loadData() async {
-    await storage.ready;
-    return storageDatabase.getTaskListFromStorage();
+  // Future<List<Task>> loadData() async {
+  //   await storage.ready;
+  //   return storageDatabase.getTaskListFromStorage();
+  // }
+
+  Future<void> loadData() async {
+    await Future.wait([Hive.openBox<Task>(tasksKey)]);
   }
 
   @override
@@ -38,28 +48,29 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<Task>>(
+    return FutureBuilder(
       future: loadData(),
       builder: (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
-        if (snapshot.hasError) {
-          return MaterialApp(
-            home: Scaffold(
-              body: Center(
-                child: Text(snapshot.error.toString(),
-                    style: Theme.of(context).textTheme.headline5),
-              ),
-            ),
-          );
-        }
         if (snapshot.connectionState == ConnectionState.done) {
-          List<Task> taskList = snapshot.data;
+          if (snapshot.error != null) {
+            return MaterialApp(
+              home: Scaffold(
+                body: Center(
+                  child: Text(snapshot.error.toString(),
+                      style: Theme.of(context).textTheme.headline5),
+                ),
+              ),
+            );
+          }
+          print('boxes ${Hive.box<Task>(tasksKey).values}');
           return MultiProvider(
             providers: [
               ChangeNotifierProvider<TaskListProvider>(
-                  create: (context) => TaskListProvider(
-                        taskList: taskList,
-                        storageDatabase: storageDatabase,
-                      )),
+                create: (context) => TaskListProvider(
+                  taskList: Hive.box<Task>(tasksKey).values.toList(),
+                  storageDatabase: StorageHiveDatabase(),
+                ),
+              ),
             ],
             child: MaterialApp(
               title: 'TODO',
